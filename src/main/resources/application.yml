@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: fragmented-file-transfer-api
+  datasource:
+    url: jdbc:postgresql://localhost:5432/fragmented_file_transfer_db
+    username: postgres
+    password: 1234pass
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    generate-ddl: true
+    show-sql: true
+    hibernate:
+      ddl-auto: none
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+server:
+  port: 8080
