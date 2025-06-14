@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### File Resources ###
+src/main/resources/input
+src/main/resources/output
