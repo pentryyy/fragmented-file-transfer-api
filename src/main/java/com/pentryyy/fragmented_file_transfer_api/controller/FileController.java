@@ -9,6 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
+import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAvailableException;
+import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
 import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
 import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
@@ -18,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,8 +33,8 @@ public class FileController {
 
     private static final String RESOURCES_DIR = "src/main/resources/";
 
-    private String currentOutputFilePath;
-    private String currentProcessingId;
+    private static HashMap<String, FileTaskStatus> statusOfFiles = new HashMap<String, FileTaskStatus>();
+    private        String                          currentOutputFilePath;
 
     @PostMapping("/upload")
     public ResponseEntity<String> uploadAndProcessFile(
@@ -43,8 +47,7 @@ public class FileController {
         try {
             // Создаем уникальный ID для обработки
             String processingId = UUID.randomUUID().toString();
-            this.currentProcessingId = processingId;
-            
+
             // Создаем директории для обработки
             String inputDir = RESOURCES_DIR + "input/" + processingId + "/";
             String outputDir = RESOURCES_DIR + "output/" + processingId + "/";
@@ -56,7 +59,10 @@ public class FileController {
             String originalFileName = file.getOriginalFilename();
             Path inputFilePath = Paths.get(inputDir + originalFileName);
             file.transferTo(inputFilePath);
-            
+
+            // Добавляем в хэш-таблицу
+            statusOfFiles.put(processingId, FileTaskStatus.PROCESSING);
+
             // Готовим выходной файл
             this.currentOutputFilePath = outputDir + "assembled_" + originalFileName;
             File outputFile = new File(currentOutputFilePath);
@@ -99,13 +105,15 @@ public class FileController {
                     if (assembler.isFileComplete()) {
                         assembler.assembleFile(currentOutputFilePath);
                     }
+
+                    statusOfFiles.replace(processingId, FileTaskStatus.COMPLETED);
                 } catch (IOException | InterruptedException e) {
-                    e.printStackTrace();
+                    statusOfFiles.replace(processingId, FileTaskStatus.FAILED);
                 }
             }).start();
 
             jsonObject.put("processingId", processingId);
-            jsonObject.put("status", "PROCESSING");
+            jsonObject.put("status", statusOfFiles.get(processingId));
 
             return ResponseEntity.ok()
                                  .contentType(MediaType.APPLICATION_JSON)
@@ -122,16 +130,16 @@ public class FileController {
 
     @GetMapping("/download/{processingId}")
     public ResponseEntity<Resource> downloadFile(@PathVariable String processingId) {
+        if (!statusOfFiles.containsKey(processingId)) {
+            throw new FileProcessNotFoundException(processingId);
+        }
         
+        if (!statusOfFiles.get(processingId).equals(FileTaskStatus.COMPLETED)) {
+            throw new FileNotAvailableException();
+        }
+
         try {
-            if (!processingId.equals(currentProcessingId)) {
-                return ResponseEntity.notFound().build();
-            }
-            
             File file = new File(currentOutputFilePath);
-            if (!file.exists()) {
-                return ResponseEntity.status(404).body(null);
-            }
 
             Resource resource = new FileSystemResource(file);
             return ResponseEntity.ok()
@@ -146,13 +154,12 @@ public class FileController {
 
     @GetMapping("/status/{processingId}")
     public ResponseEntity<String> getStatus(@PathVariable String processingId) {
-        if (!processingId.equals(currentProcessingId)) {
-            return ResponseEntity.notFound().build();
+        if (!statusOfFiles.containsKey(processingId)) {
+            throw new FileProcessNotFoundException(processingId);
         }
 
-        // Здесь будет реальная проверка статуса, но потом
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("status", "COMPLETED");
+        jsonObject.put("status", statusOfFiles.get(processingId));
         return ResponseEntity.ok()
                              .contentType(MediaType.APPLICATION_JSON)
                              .body(jsonObject.toString());
