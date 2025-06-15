@@ -6,10 +6,12 @@ import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler
 import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
 
 public class TransmissionChannel {
+
     private final double lossProbability;
     private final Random random = new Random();
+
     private FileAssembler assembler;
-    private FileSplitter splitter;
+    private FileSplitter  splitter;
 
     public TransmissionChannel(double lossProbability) {
         this.lossProbability = lossProbability;

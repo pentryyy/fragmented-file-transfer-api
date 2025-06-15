@@ -12,15 +12,16 @@ import com.pentryyy.fragmented_file_transfer_api.transfer.core.Feedback;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
 
 public class FileAssembler {
-    private final int fileId;
-    private final int totalChunks;
+
+    private final int                 fileId;
+    private final int                 totalChunks;
     private final Map<Integer, Chunk> receivedChunks = new ConcurrentHashMap<>();
     private final TransmissionChannel channel;
 
     public FileAssembler(int fileId, int totalChunks, TransmissionChannel channel) {
-        this.fileId = fileId;
+        this.fileId      = fileId;
         this.totalChunks = totalChunks;
-        this.channel = channel;
+        this.channel     = channel;
     }
 
     public void receiveChunk(Chunk chunk) {
