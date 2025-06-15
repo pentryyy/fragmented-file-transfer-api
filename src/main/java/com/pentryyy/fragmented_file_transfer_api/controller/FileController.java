@@ -3,6 +3,10 @@ package com.pentryyy.fragmented_file_transfer_api.controller;
 import org.json.JSONObject;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAvailableException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
+import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
 import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
 import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
@@ -21,11 +26,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/files")
@@ -163,5 +171,55 @@ public class FileController {
         return ResponseEntity.ok()
                              .contentType(MediaType.APPLICATION_JSON)
                              .body(jsonObject.toString());
+    }
+
+    @GetMapping("/get-all-tasks")
+    public ResponseEntity<Page<FileTask>> getAllTasks(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int limit,
+        @RequestParam(defaultValue = "id") String sortBy,
+        @RequestParam(defaultValue = "ASC") Sort.Direction sortOrder) {
+        
+        
+        // 1. Преобразование HashMap в список FileTask
+        List<FileTask> tasks = statusOfFiles
+            .entrySet()
+            .stream()
+            .map(entry -> new FileTask(entry.getKey(), entry.getValue()))
+            .collect(Collectors.toList());
+
+        // 2. Создание компаратора для сортировки
+        Comparator<FileTask> comparator;
+        if ("status".equalsIgnoreCase(sortBy)) {
+            comparator = Comparator.comparing(FileTask::getStatus);
+        } else {
+            comparator = Comparator.comparing(FileTask::getProcessingId);
+        }
+
+        // 3. Применение направления сортировки
+        if (sortOrder.isDescending()) {
+            comparator = comparator.reversed();
+        }
+
+        // 4. Сортировка списка
+        tasks.sort(comparator);
+
+        // 5. Пагинация
+        int totalItems = tasks.size();
+        int start      = (int) PageRequest.of(page, limit).getOffset();
+        int end        = Math.min(start + limit, totalItems);
+        
+        if (start > totalItems) {
+            return ResponseEntity.ok(Page.empty());
+        }
+
+        // 6. Создание объекта Page
+        Page<FileTask> taskPage = new PageImpl<>(
+            tasks.subList(start, end),
+            PageRequest.of(page, limit, Sort.by(sortOrder, sortBy)),
+            totalItems
+        );
+
+        return ResponseEntity.ok(taskPage);
     }
 }
