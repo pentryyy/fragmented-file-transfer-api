@@ -53,13 +53,15 @@ public class UserController {
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "10") int limit,
         @RequestParam(defaultValue = "id") String sortBy,
-        @RequestParam(defaultValue = "ASC") String sortOrder) {
+        @RequestParam(defaultValue = "ASC") String sortOrder
+    ) {
         
         Page<User> users = userService.getAllUsers(
             page, 
             limit, 
             sortBy, 
-            sortOrder);
+            sortOrder
+        );
         return ResponseEntity.ok(users);
     }
 
@@ -80,7 +82,8 @@ public class UserController {
     @PatchMapping("/change-role/{id}")
     public ResponseEntity<?> changeRole(
         @PathVariable Long id,  
-        @RequestBody @Valid RoleUpdateRequest request) {
+        @RequestBody @Valid RoleUpdateRequest request
+    ) {
           
         userService.changeRole(id, request.getRolename());
 
@@ -121,7 +124,8 @@ public class UserController {
     @PutMapping("/update/{id}")
     public ResponseEntity<?> updateUser(
         @PathVariable Long id, 
-        @RequestBody @Valid UserUpdateRequest request) {   
+        @RequestBody @Valid UserUpdateRequest request
+    ) {   
         
         userService.updateUser(id, request);
         
@@ -136,7 +140,8 @@ public class UserController {
     @PatchMapping("/change-pass/{id}")
     public ResponseEntity<?> changePassword(
         @PathVariable Long id, 
-        @RequestBody @Valid PasswordChangeRequest request) {
+        @RequestBody @Valid PasswordChangeRequest request
+    ) {
         
         String encryptedPassword = passwordEncoder.encode(request.getPassword());
         userService.changePassword(id, encryptedPassword);

@@ -1,11 +1,10 @@
 package com.pentryyy.fragmented_file_transfer_api.controller;
 
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -13,13 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
-import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAvailableException;
-import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
-import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
-import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
-import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
+import com.pentryyy.fragmented_file_transfer_api.service.FileService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -31,27 +25,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/files")
 @Tag(name = "Управление файлами", description = "Операции для загрузки, обработки и скачивания файлов")
 public class FileController {
 
-    private static final String RESOURCES_DIR = "src/main/resources/";
-
-    private static HashMap<String, FileTaskStatus> statusOfFiles = new HashMap<String, FileTaskStatus>();
-    private        String                          currentOutputFilePath;
+    @Autowired
+    private FileService fileService;
 
     @Operation(
         summary = "Загрузка и обработка файла",
@@ -88,75 +71,13 @@ public class FileController {
         JSONObject jsonObject = new JSONObject();
 
         try {
-            // Создаем уникальный ID для обработки
-            String processingId = UUID.randomUUID().toString();
+            String processingId = fileService.initializingFileProcessing(file, lossProbability);
 
-            // Создаем директории для обработки
-            String inputDir = RESOURCES_DIR + "input/" + processingId + "/";
-            String outputDir = RESOURCES_DIR + "output/" + processingId + "/";
-
-            Files.createDirectories(Paths.get(inputDir));
-            Files.createDirectories(Paths.get(outputDir));
-
-            // Сохраняем загруженный файл
-            String originalFileName = file.getOriginalFilename();
-            Path inputFilePath = Paths.get(inputDir + originalFileName);
-            file.transferTo(inputFilePath);
-
-            // Добавляем в хэш-таблицу
-            statusOfFiles.put(processingId, FileTaskStatus.PROCESSING);
-
-            // Готовим выходной файл
-            this.currentOutputFilePath = outputDir + "assembled_" + originalFileName;
-            File outputFile = new File(currentOutputFilePath);
-
-            if (outputFile.exists()) 
-                outputFile.delete();
-
-            // Конфигурация обработки
-            File inputFile = inputFilePath.toFile();
-
-            int chunkSize = 1024;
-            int fileId    = processingId.hashCode();
-
-            TransmissionChannel channel = new TransmissionChannel(lossProbability);
-            FileSplitter splitter = new FileSplitter(fileId, channel);
-            int totalChunks = (int) Math.ceil((double) inputFile.length() / chunkSize);
-            FileAssembler assembler = new FileAssembler(fileId, totalChunks, channel);
-
-            channel.registerReceiver(assembler);
-            channel.registerReceiver(splitter);
-
-            // Запуск обработки в отдельном потоке
-            new Thread(() -> {
-                try {
-                    ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-                    
-                    splitter.splitFile(inputFile, chunkSize);
-                    
-                    scheduler.scheduleAtFixedRate(() -> {
-                        if (!splitter.isDeliveryComplete()) {
-                            assembler.sendFeedback();
-                        }
-                    }, 0, 1, TimeUnit.SECONDS);
-
-                    while (!splitter.isDeliveryComplete()) {
-                        Thread.sleep(500);
-                    }
-                    scheduler.shutdown();
-                    
-                    if (assembler.isFileComplete()) {
-                        assembler.assembleFile(currentOutputFilePath);
-                    }
-
-                    statusOfFiles.replace(processingId, FileTaskStatus.COMPLETED);
-                } catch (IOException | InterruptedException e) {
-                    statusOfFiles.replace(processingId, FileTaskStatus.FAILED);
-                }
-            }).start();
+            ExecutorService processingExecutor = Executors.newCachedThreadPool();
+            processingExecutor.execute(() -> fileService.processFileTask());
 
             jsonObject.put("processingId", processingId);
-            jsonObject.put("status", statusOfFiles.get(processingId));
+            jsonObject.put("status", fileService.getStatusById(processingId));
 
             return ResponseEntity.ok()
                                  .contentType(MediaType.APPLICATION_JSON)
@@ -200,17 +121,10 @@ public class FileController {
         @PathVariable String processingId
     ) {
 
-        if (!statusOfFiles.containsKey(processingId)) {
-            throw new FileProcessNotFoundException(processingId);
-        }
-        
-        if (!statusOfFiles.get(processingId).equals(FileTaskStatus.COMPLETED)) {
-            throw new FileNotAvailableException();
-        }
-
+        File file;
         try {
-            File file = new File(currentOutputFilePath);
-
+            file = fileService.getFileById(processingId);
+           
             Resource resource = new FileSystemResource(file);
             return ResponseEntity.ok()
                                  .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
@@ -247,30 +161,23 @@ public class FileController {
         @PathVariable String processingId
     ) {
 
-        if (!statusOfFiles.containsKey(processingId)) {
-            throw new FileProcessNotFoundException(processingId);
-        }
-
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("status", statusOfFiles.get(processingId));
+        jsonObject.put("status", fileService.getStatusById(processingId));
         return ResponseEntity.ok()
                              .contentType(MediaType.APPLICATION_JSON)
                              .body(jsonObject.toString());
     }
 
     @Operation(
-        summary = "Проверка статуса обработки",
-        description = "Возвращает текущий статус обработки файла"
+        summary = "Получение всех задач обработки",
+        description = "Возвращает пагинированный список задач с возможностью сортировки"
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Статус обработки",
-            content = @Content(mediaType = "application/json")
-        ),
-        @ApiResponse(
-            responseCode = "404",
-            description = "Идентификатор обработки не найден"
+            description = "Список задач обработки",
+            content = @Content(
+                mediaType = "application/json")
         )
     })
     @GetMapping("/get-all-tasks")
@@ -301,46 +208,13 @@ public class FileController {
         ) 
         @RequestParam(defaultValue = "ASC") Sort.Direction sortOrder
     ) {
-        
-        // 1. Преобразование HashMap в список FileTask
-        List<FileTask> tasks = statusOfFiles
-            .entrySet()
-            .stream()
-            .map(entry -> new FileTask(entry.getKey(), entry.getValue()))
-            .collect(Collectors.toList());
 
-        // 2. Создание компаратора для сортировки
-        Comparator<FileTask> comparator;
-        if ("status".equalsIgnoreCase(sortBy)) {
-            comparator = Comparator.comparing(FileTask::getStatus);
-        } else {
-            comparator = Comparator.comparing(FileTask::getProcessingId);
-        }
-
-        // 3. Применение направления сортировки
-        if (sortOrder.isDescending()) {
-            comparator = comparator.reversed();
-        }
-
-        // 4. Сортировка списка
-        tasks.sort(comparator);
-
-        // 5. Пагинация
-        int totalItems = tasks.size();
-        int start      = (int) PageRequest.of(page, limit).getOffset();
-        int end        = Math.min(start + limit, totalItems);
-        
-        if (start > totalItems) {
-            return ResponseEntity.ok(Page.empty());
-        }
-
-        // 6. Создание объекта Page
-        Page<FileTask> taskPage = new PageImpl<>(
-            tasks.subList(start, end),
-            PageRequest.of(page, limit, Sort.by(sortOrder, sortBy)),
-            totalItems
+        Page<FileTask> fileTask = fileService.getAllTasks(
+            page, 
+            limit, 
+            sortBy, 
+            sortOrder
         );
-
-        return ResponseEntity.ok(taskPage);
+        return ResponseEntity.ok(fileTask);
     }
 }

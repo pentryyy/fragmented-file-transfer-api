@@ -66,9 +66,7 @@ public class UserService {
         userRepository.save(user);
     }
 
-    public void updateUser(
-        Long id, 
-        UserUpdateRequest request) {
+    public void updateUser(Long id, UserUpdateRequest request) {
         
         User user = findById(id);
 
@@ -85,9 +83,7 @@ public class UserService {
         userRepository.save(user);
     }
 
-    public void changePassword(
-        Long id, 
-        String encryptedPassword) {
+    public void changePassword(Long id, String encryptedPassword) {
         
         User user = findById(id);
 
@@ -120,7 +116,8 @@ public class UserService {
         int page, 
         int limit,
         String sortBy, 
-        String sortOrder) {
+        String sortOrder
+    ) {
         
         Sort sort = sortOrder.equalsIgnoreCase(Sort.Direction.ASC.name())
             ? Sort.by(sortBy).ascending()
