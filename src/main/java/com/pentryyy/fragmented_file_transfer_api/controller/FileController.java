@@ -21,6 +21,14 @@ import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChann
 import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
 import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,6 +45,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/files")
+@Tag(name = "Управление файлами", description = "Операции для загрузки, обработки и скачивания файлов")
 public class FileController {
 
     private static final String RESOURCES_DIR = "src/main/resources/";
@@ -44,9 +53,35 @@ public class FileController {
     private static HashMap<String, FileTaskStatus> statusOfFiles = new HashMap<String, FileTaskStatus>();
     private        String                          currentOutputFilePath;
 
+    @Operation(
+        summary = "Загрузка и обработка файла",
+        description = "Загружает файл на сервер, запускает процесс разделения на чанки и сборки с имитацией потери пакетов"
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200", 
+            description = "Файл успешно принят в обработку",
+            content = @Content(mediaType = "application/json")
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Ошибка при обработке файла",
+            content = @Content(mediaType = "application/json")
+        )
+    })
     @PostMapping("/upload")
     public ResponseEntity<String> uploadAndProcessFile(
+        @Parameter(
+            description = "Файл для обработки",
+            required = true,
+            example = "document.pdf"
+        ) 
         @RequestParam("file") MultipartFile file,
+
+        @Parameter(
+            description = "Вероятность потери пакетов (0.0-1.0)",
+            example = "0.3"
+        ) 
         @RequestParam(value = "lossProbability", defaultValue = "0.3") double lossProbability
     ) {
         
@@ -136,8 +171,35 @@ public class FileController {
         }
     }
 
+    @Operation(
+        summary = "Скачивание обработанного файла",
+        description = "Возвращает собранный файл по идентификатору обработки"
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Файл успешно доставлен",
+            content = @Content(mediaType = "application/octet-stream")
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Идентификатор обработки не найден"
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Файл еще не доступен для скачивания"
+        )
+    })
     @GetMapping("/download/{processingId}")
-    public ResponseEntity<Resource> downloadFile(@PathVariable String processingId) {
+    public ResponseEntity<Resource> downloadFile(
+        @Parameter(
+            description = "Уникальный идентификатор обработки",
+            required = true,
+            example = "d3b07384-1137-47ad-8bb4-0f1c1ffc5a1d"
+        ) 
+        @PathVariable String processingId
+    ) {
+
         if (!statusOfFiles.containsKey(processingId)) {
             throw new FileProcessNotFoundException(processingId);
         }
@@ -160,8 +222,31 @@ public class FileController {
         }
     }
 
+    @Operation(
+        summary = "Проверка статуса обработки",
+        description = "Возвращает текущий статус обработки файла"
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Статус обработки",
+            content = @Content(mediaType = "application/json")
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Идентификатор обработки не найден"
+        )
+    })
     @GetMapping("/status/{processingId}")
-    public ResponseEntity<String> getStatus(@PathVariable String processingId) {
+    public ResponseEntity<String> getStatus(
+        @Parameter(
+            description = "Уникальный идентификатор обработки",
+            required = true,
+            example = "d3b07384-1137-47ad-8bb4-0f1c1ffc5a1d"
+        ) 
+        @PathVariable String processingId
+    ) {
+
         if (!statusOfFiles.containsKey(processingId)) {
             throw new FileProcessNotFoundException(processingId);
         }
@@ -173,13 +258,49 @@ public class FileController {
                              .body(jsonObject.toString());
     }
 
+    @Operation(
+        summary = "Проверка статуса обработки",
+        description = "Возвращает текущий статус обработки файла"
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Статус обработки",
+            content = @Content(mediaType = "application/json")
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Идентификатор обработки не найден"
+        )
+    })
     @GetMapping("/get-all-tasks")
     public ResponseEntity<Page<FileTask>> getAllTasks(
+        @Parameter(
+            description = "Номер страницы (с 0)",
+            example = "0"
+        ) 
         @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "10") int limit,
-        @RequestParam(defaultValue = "id") String sortBy,
-        @RequestParam(defaultValue = "ASC") Sort.Direction sortOrder) {
         
+        @Parameter(
+            description = "Количество элементов на странице",
+            example = "10"
+        ) 
+        @RequestParam(defaultValue = "10") int limit,
+        
+        @Parameter(
+            description = "Поле для сортировки",
+            schema = @Schema(allowableValues = {"processingId", "status"}),
+            example = "processingId"
+        ) 
+        @RequestParam(defaultValue = "processingId") String sortBy,
+        
+        @Parameter(
+            description = "Порядок сортировки",
+            schema = @Schema(allowableValues = {"ASC", "DESC"}),
+            example = "ASC"
+        ) 
+        @RequestParam(defaultValue = "ASC") Sort.Direction sortOrder
+    ) {
         
         // 1. Преобразование HashMap в список FileTask
         List<FileTask> tasks = statusOfFiles
