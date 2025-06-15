@@ -6,6 +6,7 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -74,7 +76,7 @@ public class FileController {
             String processingId = fileService.initializingFileProcessing(file, lossProbability);
 
             ExecutorService processingExecutor = Executors.newCachedThreadPool();
-            processingExecutor.execute(() -> fileService.processFileTask());
+            processingExecutor.execute(() -> fileService.processFileTask(processingId));
 
             jsonObject.put("processingId", processingId);
             jsonObject.put("status", fileService.getStatusById(processingId));
@@ -109,6 +111,10 @@ public class FileController {
         @ApiResponse(
             responseCode = "404",
             description = "Файл еще не доступен для скачивания"
+        ),
+        @ApiResponse(
+            responseCode = "500", 
+            description = "Ошибка при обработке файла"
         )
     })
     @GetMapping("/download/{processingId}")
@@ -126,10 +132,16 @@ public class FileController {
             file = fileService.getFileById(processingId);
            
             Resource resource = new FileSystemResource(file);
+
+            ContentDisposition contentDisposition = ContentDisposition
+                .attachment()
+                .filename(file.getName(), StandardCharsets.UTF_8)
+                .build();
+            
             return ResponseEntity.ok()
-                                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
-                                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                                 .body(resource);
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
             
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(null);

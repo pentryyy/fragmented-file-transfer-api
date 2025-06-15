@@ -14,5 +14,5 @@ public class FileTask {
     private final String processingId;
     
     private FileTaskStatus status;
-    private String         currentOutputFilePath;
+    private String         outputFileName;
 }

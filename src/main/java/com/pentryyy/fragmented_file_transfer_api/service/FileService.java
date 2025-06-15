@@ -56,6 +56,13 @@ public class FileService {
         }
     }
 
+    private String getInputDir(String processingId) {
+        return RESOURCES_DIR + "input/" + processingId + "/";
+    }
+
+    private String getOutputDir(String processingId) {
+        return RESOURCES_DIR + "output/" + processingId + "/";
+    }
 
     public String initializingFileProcessing(
         MultipartFile file, 
@@ -66,8 +73,8 @@ public class FileService {
         String processingId = UUID.randomUUID().toString();
 
         // Создаем директории для обработки
-        String inputDir  = RESOURCES_DIR + "input/" + processingId + "/";
-        String outputDir = RESOURCES_DIR + "output/" + processingId + "/";
+        String inputDir  = getInputDir(processingId);
+        String outputDir = getOutputDir(processingId);
 
         Files.createDirectories(Paths.get(inputDir));
         Files.createDirectories(Paths.get(outputDir));
@@ -81,7 +88,7 @@ public class FileService {
         this.fileTask = new FileTask(
             processingId, 
             FileTaskStatus.PROCESSING,
-            outputDir + "assembled_" + originalFileName
+            "assembled_" + originalFileName
         );
 
         statusOfFiles.add(fileTask);
@@ -106,9 +113,10 @@ public class FileService {
         return processingId;
     }
 
-    public void processFileTask() {
+    public void processFileTask(String processingId) {
         ScheduledExecutorService scheduler = null;
-        
+        FileTask fileTask = findTaskById(processingId);
+
         try {
             scheduler = Executors.newScheduledThreadPool(1);
             
@@ -132,13 +140,14 @@ public class FileService {
             
             // 5. Собираем файл если все чанки получены
             if (assembler.isFileComplete()) {
-                assembler.assembleFile(this.fileTask.getCurrentOutputFilePath());
+                String outputPath = getOutputDir(processingId) + fileTask.getOutputFileName();
+                assembler.assembleFile(outputPath);
             }
 
             // 6. Обновляем статус
-            this.fileTask.setStatus(FileTaskStatus.COMPLETED);
+            fileTask.setStatus(FileTaskStatus.COMPLETED);
         } catch (IOException | InterruptedException e) {
-            this.fileTask.setStatus(FileTaskStatus.FAILED);
+            fileTask.setStatus(FileTaskStatus.FAILED);
         } finally {
             // Гарантированное завершение планировщика
             if (scheduler != null && !scheduler.isShutdown()) {
@@ -186,13 +195,13 @@ public class FileService {
     }
 
     public File getFileById(String processingId) throws FileNotFoundException {
-        FileTask task = findTaskById(processingId);
+        FileTask fileTask = findTaskById(processingId);
 
-        if (!task.getStatus().equals(FileTaskStatus.COMPLETED)) {
+        if (!fileTask.getStatus().equals(FileTaskStatus.COMPLETED)) {
             throw new FileNotAvailableException();
         }
 
-        String outputPath = task.getCurrentOutputFilePath();
+        String outputPath = getOutputDir(processingId) + fileTask.getOutputFileName();
         File outputFile = new File(outputPath);
 
         if (!outputFile.exists()) {
