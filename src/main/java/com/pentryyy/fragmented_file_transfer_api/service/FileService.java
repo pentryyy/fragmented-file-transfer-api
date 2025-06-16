@@ -87,7 +87,7 @@ public class FileService {
 
         this.fileTask = new FileTask(
             processingId, 
-            FileTaskStatus.PROCESSING,
+            FileTaskStatus.CREATED,
             "assembled_" + originalFileName
         );
 
@@ -116,6 +116,7 @@ public class FileService {
     public void processFileTask(String processingId) {
         ScheduledExecutorService scheduler = null;
         FileTask fileTask = findTaskById(processingId);
+        fileTask.setStatus(FileTaskStatus.PROCESSING);
 
         try {
             scheduler = Executors.newScheduledThreadPool(1);
