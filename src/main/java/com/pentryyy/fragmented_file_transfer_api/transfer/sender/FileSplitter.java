@@ -15,15 +15,16 @@ import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChann
 
 public class FileSplitter {
 
-    private final int                 fileId;
-    private final Map<Integer, Chunk> chunks = new ConcurrentHashMap<>();
-    private final Set<Integer>        pendingChunks = ConcurrentHashMap.newKeySet();
+    private final String              processingId;
     private final TransmissionChannel channel;
+
+    private final Map<Integer, Chunk> chunks        = new ConcurrentHashMap<>();
+    private final Set<Integer>        pendingChunks = ConcurrentHashMap.newKeySet();
 
     private volatile boolean deliveryComplete = false;
 
-    public FileSplitter(int fileId, TransmissionChannel channel) {
-        this.fileId  = fileId;
+    public FileSplitter(String processingId, TransmissionChannel channel) {
+        this.processingId  = processingId;
         this.channel = channel;
     }
 
@@ -34,7 +35,7 @@ public class FileSplitter {
             int sequence = 0;
             while ((bytesRead = fis.read(buffer)) != -1) {
                 byte[] chunkData = Arrays.copyOf(buffer, bytesRead);
-                Chunk chunk = new Chunk(sequence, chunkData, fileId);
+                Chunk chunk = new Chunk(sequence, chunkData, processingId);
                 chunks.put(sequence, chunk);
                 pendingChunks.add(sequence);
                 channel.sendChunk(chunk);
@@ -44,7 +45,7 @@ public class FileSplitter {
     }
 
     public void receiveFeedback(Feedback feedback) {
-        if (feedback.getFileId() != fileId) return;
+        if (feedback.getProcessingId() != processingId) return;
         
         Set<Integer> missing = feedback.getMissingSequences();
         if (missing.isEmpty()) {

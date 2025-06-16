@@ -9,6 +9,6 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class Feedback implements Serializable {
-    private final int          fileId;
+    private final String       processingId;
     private final Set<Integer> missingSequences;
 }

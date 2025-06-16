@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,19 +24,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
-import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAvailableException;
+import com.pentryyy.fragmented_file_transfer_api.enumeration.FileType;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
 import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
 import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
+import com.pentryyy.fragmented_file_transfer_api.utils.DirectoryUtils;
 
 @Service
-public class FileService {
+public class FileService extends DirectoryUtils {
 
-    private static final String RESOURCES_DIR = "src/main/resources/";
-
-    private static HashSet<FileTask> statusOfFiles = new HashSet<FileTask>();
+    private static Set<FileTask> statusOfFiles = new HashSet<FileTask>();
     
     private FileTask            fileTask;
     private TransmissionChannel channel;
@@ -43,10 +43,8 @@ public class FileService {
     private FileAssembler       assembler;
 
     private File inputFile;
-    private int  chunkSize;
-    private int  fileId;
 
-    private FileTask findTaskById(String processingId) {
+    private FileTask findFileTaskById(String processingId) {
         synchronized (statusOfFiles) {
             return statusOfFiles
                 .stream()
@@ -56,17 +54,10 @@ public class FileService {
         }
     }
 
-    private String getInputDir(String processingId) {
-        return RESOURCES_DIR + "input/" + processingId + "/";
-    }
-
-    private String getOutputDir(String processingId) {
-        return RESOURCES_DIR + "output/" + processingId + "/";
-    }
-
     public String initializingFileProcessing(
         MultipartFile file, 
-        double lossProbability
+        double lossProbability,
+        int chunkSize
     ) throws IOException {
 
         // Создаем уникальный ID для обработки
@@ -89,21 +80,20 @@ public class FileService {
             .builder()
             .processingId(processingId)
             .status(FileTaskStatus.CREATED)
-            .outputFileName("assembled_" + originalFileName)
+            .fileName(originalFileName)
+            .chunkSize(chunkSize)
             .build();
 
         statusOfFiles.add(fileTask);
 
         // Конфигурация обработки
         this.inputFile = inputFilePath.toFile();
-        this.chunkSize = 1024;
-        this.fileId    = processingId.hashCode();
 
         this.channel  = new TransmissionChannel(lossProbability);
-        this.splitter = new FileSplitter(fileId, channel);
+        this.splitter = new FileSplitter(processingId, channel);
 
         this.assembler = new FileAssembler(
-            fileId, 
+            processingId, 
             (int) Math.ceil((double) inputFile.length() / chunkSize), 
             channel
         );
@@ -116,14 +106,16 @@ public class FileService {
 
     public void processFileTask(String processingId) {
         ScheduledExecutorService scheduler = null;
-        FileTask fileTask = findTaskById(processingId);
-        fileTask.setStatus(FileTaskStatus.PROCESSING);
+        FileTask fileTask = findFileTaskById(processingId);
 
         try {
             scheduler = Executors.newScheduledThreadPool(1);
             
             // 1. Разбиваем файл на чанки
-            splitter.splitFile(inputFile, chunkSize);
+            splitter.splitFile(
+                inputFile, 
+                fileTask.getChunkSize()
+            );
             
             // 2. Запускаем периодическую отправку фидбэка
             scheduler.scheduleAtFixedRate(() -> {
@@ -142,7 +134,7 @@ public class FileService {
             
             // 5. Собираем файл если все чанки получены
             if (assembler.isFileComplete()) {
-                String outputPath = getOutputDir(processingId) + fileTask.getOutputFileName();
+                String outputPath = getOutputDir(processingId) + "assembled_" + fileTask.getFileName();
                 assembler.assembleFile(outputPath);
             }
 
@@ -196,22 +188,26 @@ public class FileService {
         return new PageImpl<>(pageContent, pageable, totalItems);
     }
 
-    public File getFileById(String processingId) throws FileNotFoundException {
-        FileTask fileTask = findTaskById(processingId);
+    public File getFileById(String processingId, FileType fileType) throws FileNotFoundException {
+        FileTask fileTask = findFileTaskById(processingId);
 
-        if (!fileTask.getStatus().equals(FileTaskStatus.COMPLETED)) {
-            throw new FileNotAvailableException();
+        String filePath = "";
+        File   file     = null;
+
+        if (fileType.equals(FileType.OUTPUT)) {
+            filePath = getOutputDir(processingId) + "assembled_" + fileTask.getFileName();
+            file = new File(filePath);
+        } else if (fileType.equals(FileType.INPUT)) {
+            filePath = getInputDir(processingId) + fileTask.getFileName();
+            file = new File(filePath);
         }
 
-        String outputPath = getOutputDir(processingId) + fileTask.getOutputFileName();
-        File outputFile = new File(outputPath);
-
-        if (!outputFile.exists()) {
+        if (!file.exists()) {
             throw new FileNotFoundException(
-                "Обработанный файл не найден по адресу: " + outputPath
+                "Файл не найден по адресу: " + filePath
             );
         }
 
-        return outputFile;
+        return file;
     }
 }

@@ -10,5 +10,5 @@ import lombok.Getter;
 public class Chunk implements Serializable {
     private final int    sequenceNumber;
     private final byte[] data;
-    private final int    fileId;
+    private final String processingId;
 }

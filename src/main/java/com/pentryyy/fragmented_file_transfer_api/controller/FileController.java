@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.pentryyy.fragmented_file_transfer_api.enumeration.FileType;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.service.FileService;
 
@@ -67,13 +68,23 @@ public class FileController {
             description = "Вероятность потери пакетов (0.0-1.0)",
             example = "0.3"
         ) 
-        @RequestParam(value = "lossProbability", defaultValue = "0.3") double lossProbability
+        @RequestParam(value = "lossProbability", defaultValue = "0.3") double lossProbability,
+
+        @Parameter(
+            description = "Размер каждого чанка",
+            example = "1024"
+        ) 
+        @RequestParam(value = "chunkSize", defaultValue = "1024") int chunkSize
     ) {
         
         JSONObject jsonObject = new JSONObject();
 
         try {
-            String processingId = fileService.initializingFileProcessing(file, lossProbability);
+            String processingId = fileService.initializingFileProcessing(
+                file, 
+                lossProbability,
+                chunkSize
+            );
 
             ExecutorService processingExecutor = Executors.newCachedThreadPool();
             processingExecutor.execute(() -> fileService.processFileTask(processingId));
@@ -129,7 +140,7 @@ public class FileController {
 
         File file;
         try {
-            file = fileService.getFileById(processingId);
+            file = fileService.getFileById(processingId, FileType.OUTPUT);
            
             Resource resource = new FileSystemResource(file);
 

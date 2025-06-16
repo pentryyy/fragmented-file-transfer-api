@@ -13,19 +13,19 @@ import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChann
 
 public class FileAssembler {
 
-    private final int                 fileId;
+    private final String              processingId;
     private final int                 totalChunks;
     private final Map<Integer, Chunk> receivedChunks = new ConcurrentHashMap<>();
     private final TransmissionChannel channel;
 
-    public FileAssembler(int fileId, int totalChunks, TransmissionChannel channel) {
-        this.fileId      = fileId;
-        this.totalChunks = totalChunks;
-        this.channel     = channel;
+    public FileAssembler(String processingId, int totalChunks, TransmissionChannel channel) {
+        this.processingId = processingId;
+        this.totalChunks  = totalChunks;
+        this.channel      = channel;
     }
 
     public void receiveChunk(Chunk chunk) {
-        if (chunk.getFileId() != fileId) return;
+        if (chunk.getProcessingId() != processingId) return;
         receivedChunks.put(chunk.getSequenceNumber(), chunk);
     }
 
@@ -34,7 +34,7 @@ public class FileAssembler {
         for (int i = 0; i < totalChunks; i++) {
             if (!receivedChunks.containsKey(i)) missing.add(i);
         }
-        channel.sendFeedback(new Feedback(fileId, missing));
+        channel.sendFeedback(new Feedback(processingId, missing));
     }
 
     public boolean isFileComplete() {
