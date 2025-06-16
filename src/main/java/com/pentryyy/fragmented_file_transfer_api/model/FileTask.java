@@ -1,5 +1,8 @@
 package com.pentryyy.fragmented_file_transfer_api.model;
 
+import java.io.File;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
 
 import lombok.AllArgsConstructor;
@@ -16,6 +19,8 @@ public class FileTask {
     private final String processingId;
     
     private FileTaskStatus status;
-    private String         fileName;
     private int            chunkSize;
+
+    @JsonIgnore
+    private File file;
 }

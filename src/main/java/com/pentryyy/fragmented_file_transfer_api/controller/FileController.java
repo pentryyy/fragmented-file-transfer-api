@@ -13,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.pentryyy.fragmented_file_transfer_api.enumeration.FileType;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.service.FileService;
 
@@ -140,7 +139,7 @@ public class FileController {
 
         File file;
         try {
-            file = fileService.getFileById(processingId, FileType.OUTPUT);
+            file = fileService.getFileById(processingId);
            
             Resource resource = new FileSystemResource(file);
 

@@ -24,7 +24,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
-import com.pentryyy.fragmented_file_transfer_api.enumeration.FileType;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
@@ -37,12 +36,11 @@ public class FileService extends DirectoryUtils {
 
     private static Set<FileTask> statusOfFiles = new HashSet<FileTask>();
     
-    private FileTask            fileTask;
+    private FileTask fileTask;
+
     private TransmissionChannel channel;
     private FileSplitter        splitter;
     private FileAssembler       assembler;
-
-    private File inputFile;
 
     private FileTask findFileTaskById(String processingId) {
         synchronized (statusOfFiles) {
@@ -71,30 +69,26 @@ public class FileService extends DirectoryUtils {
         Files.createDirectories(Paths.get(outputDir));
 
         // Сохраняем загруженный файл
-        String originalFileName = file.getOriginalFilename();
-        Path   inputFilePath    = Paths.get(inputDir + originalFileName);
-
+        Path inputFilePath = Paths.get(inputDir + file.getOriginalFilename());
         file.transferTo(inputFilePath);
 
         this.fileTask = FileTask
             .builder()
             .processingId(processingId)
             .status(FileTaskStatus.CREATED)
-            .fileName(originalFileName)
             .chunkSize(chunkSize)
+            .file(inputFilePath.toFile())
             .build();
 
         statusOfFiles.add(fileTask);
 
         // Конфигурация обработки
-        this.inputFile = inputFilePath.toFile();
-
         this.channel  = new TransmissionChannel(lossProbability);
         this.splitter = new FileSplitter(processingId, channel);
 
         this.assembler = new FileAssembler(
             processingId, 
-            (int) Math.ceil((double) inputFile.length() / chunkSize), 
+            (int) Math.ceil((double) fileTask.getFile().length() / chunkSize), 
             channel
         );
 
@@ -113,7 +107,7 @@ public class FileService extends DirectoryUtils {
             
             // 1. Разбиваем файл на чанки
             splitter.splitFile(
-                inputFile, 
+                fileTask.getFile(), 
                 fileTask.getChunkSize()
             );
             
@@ -134,8 +128,9 @@ public class FileService extends DirectoryUtils {
             
             // 5. Собираем файл если все чанки получены
             if (assembler.isFileComplete()) {
-                String outputPath = getOutputDir(processingId) + "assembled_" + fileTask.getFileName();
-                assembler.assembleFile(outputPath);
+                assembler.assembleFile(
+                    getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName()
+                );
             }
 
             // 6. Обновляем статус
@@ -188,19 +183,11 @@ public class FileService extends DirectoryUtils {
         return new PageImpl<>(pageContent, pageable, totalItems);
     }
 
-    public File getFileById(String processingId, FileType fileType) throws FileNotFoundException {
+    public File getFileById(String processingId) throws FileNotFoundException {
         FileTask fileTask = findFileTaskById(processingId);
 
-        String filePath = "";
-        File   file     = null;
-
-        if (fileType.equals(FileType.OUTPUT)) {
-            filePath = getOutputDir(processingId) + "assembled_" + fileTask.getFileName();
-            file = new File(filePath);
-        } else if (fileType.equals(FileType.INPUT)) {
-            filePath = getInputDir(processingId) + fileTask.getFileName();
-            file = new File(filePath);
-        }
+        String filePath = getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName();
+        File   file     = new File(filePath);
 
         if (!file.exists()) {
             throw new FileNotFoundException(
