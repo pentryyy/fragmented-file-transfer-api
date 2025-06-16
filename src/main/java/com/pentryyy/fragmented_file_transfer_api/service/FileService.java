@@ -85,11 +85,12 @@ public class FileService {
 
         file.transferTo(inputFilePath);
 
-        this.fileTask = new FileTask(
-            processingId, 
-            FileTaskStatus.CREATED,
-            "assembled_" + originalFileName
-        );
+        this.fileTask = FileTask
+            .builder()
+            .processingId(processingId)
+            .status(FileTaskStatus.CREATED)
+            .outputFileName("assembled_" + originalFileName)
+            .build();
 
         statusOfFiles.add(fileTask);
 
