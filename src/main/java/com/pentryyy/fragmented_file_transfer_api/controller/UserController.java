@@ -23,7 +23,9 @@ import com.pentryyy.fragmented_file_transfer_api.model.User;
 import com.pentryyy.fragmented_file_transfer_api.service.UserService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -50,9 +52,28 @@ public class UserController {
     })
     @GetMapping("/get-all-users")
     public ResponseEntity<Page<User>> getAllUsers(
+        @Parameter(
+            description = "Номер страницы (начинается с 0)",
+            example = "0"
+        ) 
         @RequestParam(defaultValue = "0") int page,
+        
+        @Parameter(
+            description = "Количество элементов на странице",
+            example = "10"
+        ) 
         @RequestParam(defaultValue = "10") int limit,
+        
+        @Parameter(
+            description = "Поле для сортировки",
+            examples = @ExampleObject(name = "Примеры", value = "id, email, username")
+        ) 
         @RequestParam(defaultValue = "id") String sortBy,
+        
+        @Parameter(
+            description = "Порядок сортировки: ASC/DESC",
+            schema = @Schema(allowableValues = {"ASC", "DESC"})
+        ) 
         @RequestParam(defaultValue = "ASC") String sortOrder
     ) {
         
@@ -73,7 +94,14 @@ public class UserController {
         @ApiResponse(responseCode = "404", description = "Пользователь не найден")
     })
     @GetMapping("/get-user/{id}")
-    public ResponseEntity<?> getUserById(@PathVariable Long id) {
+    public ResponseEntity<?> getUserById(
+        @Parameter(
+            description = "ID пользователя",
+            example = "123"
+        )
+        @PathVariable Long id
+    ) {
+
         User user = userService.findById(id);
         return ResponseEntity.ok(user);
     }
@@ -81,7 +109,16 @@ public class UserController {
     @Operation(summary = "Изменить роль пользователя", description = "Изменяет роль пользователя по его ID.")
     @PatchMapping("/change-role/{id}")
     public ResponseEntity<?> changeRole(
+        @Parameter(
+            description = "ID пользователя",
+            example = "123"
+        )    
         @PathVariable Long id,  
+
+        @Parameter(
+            description = "Запрос на обновление роли",
+            required = true
+        )
         @RequestBody @Valid RoleUpdateRequest request
     ) {
           
@@ -98,7 +135,14 @@ public class UserController {
 
     @Operation(summary = "Отключить пользователя", description = "Деактивирует учетную запись пользователя.")
     @PatchMapping("/disable-user/{id}")
-    public ResponseEntity<?> disableUser(@PathVariable Long id) {
+    public ResponseEntity<?> disableUser(
+        @Parameter(
+            description = "ID пользователя",
+            example = "123"
+        )
+        @PathVariable Long id
+    ) {
+
         userService.disableUser(id);
 
         JSONObject jsonObject = new JSONObject();
@@ -110,7 +154,14 @@ public class UserController {
 
     @Operation(summary = "Активировать пользователя", description = "Активирует учетную запись пользователя.")
     @PatchMapping("/enable-user/{id}")
-    public ResponseEntity<?> enableUser(@PathVariable Long id) {
+    public ResponseEntity<?> enableUser(
+        @Parameter(
+            description = "ID пользователя",
+            example = "123"
+        )
+        @PathVariable Long id
+    ) {
+
         userService.enableUser(id);
 
         JSONObject jsonObject = new JSONObject();
@@ -123,7 +174,16 @@ public class UserController {
     @Operation(summary = "Обновить данные пользователя", description = "Обновляет данные пользователя по его ID.")
     @PutMapping("/update/{id}")
     public ResponseEntity<?> updateUser(
+        @Parameter(
+            description = "ID пользователя",
+            example = "123"
+        )
         @PathVariable Long id, 
+
+        @Parameter(
+            description = "Данные для обновления",
+            required = true
+        )
         @RequestBody @Valid UserUpdateRequest request
     ) {   
         
@@ -139,7 +199,16 @@ public class UserController {
     @Operation(summary = "Изменить пароль пользователя", description = "Обновляет пароль пользователя по его ID.")
     @PatchMapping("/change-pass/{id}")
     public ResponseEntity<?> changePassword(
+        @Parameter(
+            description = "ID пользователя",
+            example = "123"
+        )    
         @PathVariable Long id, 
+
+        @Parameter(
+            description = "Запрос на смену пароля",
+            required = true
+        )
         @RequestBody @Valid PasswordChangeRequest request
     ) {
         
