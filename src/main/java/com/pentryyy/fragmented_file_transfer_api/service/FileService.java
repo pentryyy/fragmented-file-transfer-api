@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
+import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAssembledException;
+import com.pentryyy.fragmented_file_transfer_api.exception.FileNotSplitedException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
@@ -181,6 +183,7 @@ public class FileService extends DirectoryUtils {
 
         } catch (Exception e) {
             fileTask.setStatus(FileTaskStatus.SPLIT_FAILED);
+            throw new FileNotSplitedException();
         }
     }
 
@@ -204,6 +207,7 @@ public class FileService extends DirectoryUtils {
         
         } catch (IOException e) {
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_FAILED);
+            throw new FileNotAssembledException();
         }
     }
 }

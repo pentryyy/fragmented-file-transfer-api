@@ -48,6 +48,14 @@ public class FileController {
             content = @Content(mediaType = "application/json")
         ),
         @ApiResponse(
+            responseCode = "417",
+            description = "Ошибка разложения файла на чанки"
+        ),
+        @ApiResponse(
+            responseCode = "417",
+            description = "Процесс прерван"
+        ),
+        @ApiResponse(
             responseCode = "500", 
             description = "Ошибка при обработке файла",
             content = @Content(mediaType = "application/json")
@@ -131,6 +139,14 @@ public class FileController {
         @ApiResponse(
             responseCode = "404",
             description = "Файл еще не доступен для скачивания"
+        ),
+        @ApiResponse(
+            responseCode = "417",
+            description = "Ошибка сбора файла из чанков"
+        ),
+        @ApiResponse(
+            responseCode = "417",
+            description = "Процесс прерван"
         ),
         @ApiResponse(
             responseCode = "500", 

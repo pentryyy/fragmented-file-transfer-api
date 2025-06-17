@@ -4,9 +4,9 @@ import org.springframework.http.HttpStatus;
 
 import com.pentryyy.fragmented_file_transfer_api.exception.custom.behaviour.CustomHttpException;
 
-public class FileProcessingInterruptException extends RuntimeException implements CustomHttpException {
-    public FileProcessingInterruptException(){
-        super("Прерван процесс обработки файла");
+public class FileNotAssembledException extends RuntimeException implements CustomHttpException {
+    public FileNotAssembledException(){
+        super("Во время сбора файла из чанков произошла ошибка");
     }
 
     @Override
