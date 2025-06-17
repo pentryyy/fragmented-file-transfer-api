@@ -20,6 +20,7 @@ public class FileTask {
     
     private FileTaskStatus status;
     private int            chunkSize;
+    private double         lossProbability;
 
     @JsonIgnore
     private File file;

@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessingInterruptException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.service.FileService;
 
@@ -27,8 +28,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 @RestController
 @RequestMapping("/api/files")
@@ -78,30 +77,41 @@ public class FileController {
         
         JSONObject jsonObject = new JSONObject();
 
+        String processingId;
         try {
-            String processingId = fileService.initializingFileProcessing(
+            processingId = fileService.initializingFileProcessing(
                 file, 
                 lossProbability,
                 chunkSize
             );
-
-            ExecutorService processingExecutor = Executors.newCachedThreadPool();
-            processingExecutor.execute(() -> fileService.processFileTask(processingId));
-
-            jsonObject.put("processingId", processingId);
-            jsonObject.put("status", fileService.getStatusById(processingId));
-
-            return ResponseEntity.ok()
-                                 .contentType(MediaType.APPLICATION_JSON)
-                                 .body(jsonObject.toString());
-
         } catch (IOException e) {
-            jsonObject.put("File processing error", e.getMessage());
-
             return ResponseEntity.internalServerError() 
                                  .contentType(MediaType.APPLICATION_JSON)
                                  .body(jsonObject.toString());
         }
+
+        fileService.setupConfigureProcessing(processingId);
+
+        Thread senderThread = new Thread(() -> {
+            fileService.splittingFileIntoChunks(processingId);
+        });
+        
+        // Старт потоков
+        senderThread.start();
+        
+        // Ожидание завершения
+        try {
+            senderThread.join();
+        } catch (InterruptedException e) {
+            throw new FileProcessingInterruptException();
+        }
+
+        jsonObject.put("processingId", processingId);
+        jsonObject.put("status", fileService.getStatusById(processingId));
+
+        return ResponseEntity.ok()
+                             .contentType(MediaType.APPLICATION_JSON)
+                             .body(jsonObject.toString());
     }
 
     @Operation(
@@ -136,6 +146,20 @@ public class FileController {
         ) 
         @PathVariable String processingId
     ) {
+        
+        Thread receiverThread = new Thread(() -> {
+            fileService.assembleFileFromChunks(processingId);
+        });
+        
+        // Старт потоков
+        receiverThread.start();
+        
+        // Ожидание завершения
+        try {
+            receiverThread.join();
+        } catch (InterruptedException e) {
+            throw new FileProcessingInterruptException();
+        }
 
         File file;
         try {
@@ -149,11 +173,11 @@ public class FileController {
                 .build();
             
             return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(resource);
+                                 .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                                 .body(resource);
             
-        } catch (Exception e) {
+        } catch (IOException e) {
             return ResponseEntity.internalServerError().body(null);
         }
     }

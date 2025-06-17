@@ -12,9 +12,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -34,7 +31,7 @@ import com.pentryyy.fragmented_file_transfer_api.utils.DirectoryUtils;
 @Service
 public class FileService extends DirectoryUtils {
 
-    private static Set<FileTask> statusOfFiles = new HashSet<FileTask>();
+    private static Set<FileTask> collectionOfProcesses = new HashSet<FileTask>();
     
     private FileTask fileTask;
 
@@ -42,9 +39,9 @@ public class FileService extends DirectoryUtils {
     private FileSplitter        splitter;
     private FileAssembler       assembler;
 
-    private FileTask findFileTaskById(String processingId) {
-        synchronized (statusOfFiles) {
-            return statusOfFiles
+    public FileTask findFileTaskById(String processingId) {
+        synchronized (collectionOfProcesses) {
+            return collectionOfProcesses
                 .stream()
                 .filter(task -> Objects.equals(task.getProcessingId(), processingId))
                 .findFirst()
@@ -77,76 +74,40 @@ public class FileService extends DirectoryUtils {
             .processingId(processingId)
             .status(FileTaskStatus.CREATED)
             .chunkSize(chunkSize)
+            .lossProbability(lossProbability)
             .file(inputFilePath.toFile())
             .build();
 
-        statusOfFiles.add(fileTask);
-
-        // Конфигурация обработки
-        this.channel  = new TransmissionChannel(lossProbability);
-        this.splitter = new FileSplitter(processingId, channel);
-
-        this.assembler = new FileAssembler(
-            processingId, 
-            (int) Math.ceil((double) fileTask.getFile().length() / chunkSize), 
-            channel
-        );
-
-        channel.registerReceiver(assembler);
-        channel.registerReceiver(splitter);
+        collectionOfProcesses.add(fileTask);
 
         return processingId;
     }
 
-    public void processFileTask(String processingId) {
-        ScheduledExecutorService scheduler = null;
+    public void setupConfigureProcessing(String processingId) {
         FileTask fileTask = findFileTaskById(processingId);
 
-        try {
-            scheduler = Executors.newScheduledThreadPool(1);
-            
-            // 1. Разбиваем файл на чанки
-            splitter.splitFile(
-                fileTask.getFile(), 
-                fileTask.getChunkSize()
-            );
-            
-            // 2. Запускаем периодическую отправку фидбэка
-            scheduler.scheduleAtFixedRate(() -> {
-                if (!splitter.isDeliveryComplete()) {
-                    assembler.sendFeedback();
-                }
-            }, 0, 1, TimeUnit.SECONDS);
+        this.channel = new TransmissionChannel(fileTask.getLossProbability());
 
-            // 3. Ожидаем завершения доставки
-            while (!splitter.isDeliveryComplete()) {
-                Thread.sleep(500);
-            }
-            
-            // 4. Останавливаем планировщик
-            scheduler.shutdown();
-            
-            // 5. Собираем файл если все чанки получены
-            if (assembler.isFileComplete()) {
-                assembler.assembleFile(
-                    getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName()
-                );
-            }
+        this.splitter = new FileSplitter(
+            fileTask.getProcessingId(), 
+            this.channel
+        );
 
-            // 6. Обновляем статус
-            fileTask.setStatus(FileTaskStatus.COMPLETED);
-        } catch (IOException | InterruptedException e) {
-            fileTask.setStatus(FileTaskStatus.FAILED);
-        } finally {
-            // Гарантированное завершение планировщика
-            if (scheduler != null && !scheduler.isShutdown()) {
-                scheduler.shutdownNow();
-            }
-        }
+        long fileSize    = fileTask.getFile().length();
+        int  totalChunks = (int) Math.ceil((double) fileSize / fileTask.getChunkSize());
+        
+        this.assembler = new FileAssembler(
+            processingId,
+            totalChunks,
+            this.channel
+        );
+
+        this.channel.registerReceiver(splitter);
+        this.channel.registerReceiver(assembler);
     }
 
     public FileTaskStatus getStatusById(String processingId) {
-        return statusOfFiles
+        return collectionOfProcesses
             .stream()
             .filter(task -> task.getProcessingId().equals(processingId))
             .findFirst()
@@ -162,13 +123,14 @@ public class FileService extends DirectoryUtils {
     ) {
 
         List<FileTask> tasks;
-        synchronized (statusOfFiles) {
-            tasks = new ArrayList<>(statusOfFiles);
+        synchronized (collectionOfProcesses) {
+            tasks = new ArrayList<>(collectionOfProcesses);
         }
 
         int totalItems = tasks.size();
+        
         int start = Math.min(page * limit, totalItems);
-        int end = Math.min(start + limit, totalItems);
+        int end   = Math.min(start + limit, totalItems);
         
         // Получаем подсписок для текущей страницы
         List<FileTask> pageContent = tasks.subList(start, end);
@@ -196,5 +158,52 @@ public class FileService extends DirectoryUtils {
         }
 
         return file;
+    }
+
+    public void splittingFileIntoChunks(String processingId) {
+        FileTask fileTask = findFileTaskById(processingId);
+        
+        try {
+            fileTask.setStatus(FileTaskStatus.SPLIT_PROCESSING);
+
+            // Разбиение файла на чанки
+            this.splitter.splitFile(
+                fileTask.getFile(),
+                fileTask.getChunkSize()
+            );
+
+            // Проверка на то, доставлены ли все чанки
+            while (!this.splitter.isDeliveryComplete()) {
+                this.assembler.sendFeedback();
+            }
+
+            fileTask.setStatus(FileTaskStatus.SPLIT_COMPLETED);
+
+        } catch (Exception e) {
+            fileTask.setStatus(FileTaskStatus.SPLIT_FAILED);
+        }
+    }
+
+    public void assembleFileFromChunks(String processingId) {
+        FileTask fileTask = findFileTaskById(processingId);
+
+        try {
+            fileTask.setStatus(FileTaskStatus.ASSEMBLE_PROCESSING);
+
+            // Проверка на то, получены ли все чанки файла
+            while (!this.assembler.isFileComplete()) {
+                this.assembler.sendFeedback();
+            }
+            
+            // Сборка файла
+            this.assembler.assembleFile(
+                getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName()
+            );
+
+            fileTask.setStatus(FileTaskStatus.ASSEMBLE_COMPLETED);
+        
+        } catch (IOException e) {
+            fileTask.setStatus(FileTaskStatus.ASSEMBLE_FAILED);
+        }
     }
 }
