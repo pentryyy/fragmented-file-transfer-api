@@ -2,6 +2,8 @@ package com.pentryyy.fragmented_file_transfer_api.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.pentryyy.fragmented_file_transfer_api.dto.JwtAuthenticationResponse;
 import com.pentryyy.fragmented_file_transfer_api.dto.SignInRequest;
 import com.pentryyy.fragmented_file_transfer_api.dto.SignUpRequest;
+import com.pentryyy.fragmented_file_transfer_api.exception.JwtAuthenticationException;
 import com.pentryyy.fragmented_file_transfer_api.service.AuthenticationService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -62,7 +65,13 @@ public class AuthController {
                      schema = @Schema(example = "{}")))
     })
     @PostMapping("/sign-in")
-    public JwtAuthenticationResponse signIn(@RequestBody @Valid SignInRequest request) {
-        return authenticationService.signIn(request);
+    public ResponseEntity<?> signIn(@RequestBody @Valid SignInRequest request) {
+        try {
+            return ResponseEntity.ok(authenticationService.signIn(request));
+        } catch (BadCredentialsException e) {
+           throw new JwtAuthenticationException("Неверные данные пользователя");
+        } catch (DisabledException e) {
+           throw new JwtAuthenticationException("Аккаунт пользователя отключен");
+        }
     }
 }
