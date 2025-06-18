@@ -13,7 +13,7 @@ databaseChangeLog:
 
               - column:
                   name: password
-                  value: "$2a$12$94myWgI693.i9wyF4q20MuZUs4QZ1REzej6wJAxKsK5sVdGCqh48q"
+                  value: "$2a$10$vHQ5KSf45KiRKZRKtxMtl.cLUHEv/cbl5I3hKp/vMM91oXZdSuphK" # adminpass
 
               - column:
                   name: email
