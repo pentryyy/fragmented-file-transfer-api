@@ -7,11 +7,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -33,7 +33,7 @@ import com.pentryyy.fragmented_file_transfer_api.utils.DirectoryUtils;
 @Service
 public class FileService extends DirectoryUtils {
 
-    private static Set<FileTask> collectionOfProcesses = new HashSet<FileTask>();
+    private static Set<FileTask> collectionOfProcesses = ConcurrentHashMap.newKeySet();
     
     private FileTask fileTask;
 
@@ -42,13 +42,11 @@ public class FileService extends DirectoryUtils {
     private FileAssembler       assembler;
 
     public FileTask findFileTaskById(String processingId) {
-        synchronized (collectionOfProcesses) {
-            return collectionOfProcesses
-                .stream()
-                .filter(task -> Objects.equals(task.getProcessingId(), processingId))
-                .findFirst()
-                .orElseThrow(() -> new FileProcessNotFoundException(processingId));
-        }
+        return collectionOfProcesses
+            .stream()
+            .filter(task -> Objects.equals(task.getProcessingId(), processingId))
+            .findFirst()
+            .orElseThrow(() -> new FileProcessNotFoundException(processingId));
     }
 
     public String initializingFileProcessing(
@@ -124,10 +122,7 @@ public class FileService extends DirectoryUtils {
         Sort.Direction sortOrder
     ) {
 
-        List<FileTask> tasks;
-        synchronized (collectionOfProcesses) {
-            tasks = new ArrayList<>(collectionOfProcesses);
-        }
+        List<FileTask> tasks = new ArrayList<>(collectionOfProcesses);
 
         int totalItems = tasks.size();
         
