@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -75,6 +76,7 @@ public class FileService extends DirectoryUtils {
             .status(FileTaskStatus.CREATED)
             .chunkSize(chunkSize)
             .lossProbability(lossProbability)
+            .timestamp(LocalDateTime.now())
             .file(inputFilePath.toFile())
             .build();
 
@@ -175,6 +177,7 @@ public class FileService extends DirectoryUtils {
             }
 
             fileTask.setStatus(FileTaskStatus.SPLIT_COMPLETED);
+            fileTask.setTimestamp(LocalDateTime.now());
 
         } catch (Exception e) {
             fileTask.setStatus(FileTaskStatus.SPLIT_FAILED);
@@ -199,6 +202,7 @@ public class FileService extends DirectoryUtils {
             );
 
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_COMPLETED);
+            fileTask.setTimestamp(LocalDateTime.now());
         
         } catch (IOException e) {
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_FAILED);

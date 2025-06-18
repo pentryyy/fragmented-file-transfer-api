@@ -1,7 +1,7 @@
 package com.pentryyy.fragmented_file_transfer_api.model;
 
 import java.io.File;
-
+import java.time.LocalDateTime;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
 
@@ -21,6 +21,7 @@ public class FileTask {
     private FileTaskStatus status;
     private int            chunkSize;
     private double         lossProbability;
+    private LocalDateTime  timestamp;
 
     @JsonIgnore
     private File file;
