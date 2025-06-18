@@ -13,5 +13,12 @@ spring:
       ddl-auto: none
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+  kafka:
+    producer:
+      enable-idempotence: true
+      retries: 5
+      acks: all
+      delivery-timeout-ms: 30000
+      request-timeout-ms: 5000
 server:
   port: 8080
