@@ -22,6 +22,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.pentryyy.fragmented_file_transfer_api.component.JwtAccessDeniedHandler;
 import com.pentryyy.fragmented_file_transfer_api.component.JwtAuthenticationFilter;
 import com.pentryyy.fragmented_file_transfer_api.service.UserService;
 
@@ -38,9 +39,15 @@ public class SecurityConfiguration {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private JwtAccessDeniedHandler accessDeniedHandler;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
+            .exceptionHandling(exception -> 
+                exception.accessDeniedHandler(accessDeniedHandler)
+            )
             .authorizeHttpRequests(request -> request
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**").permitAll()
