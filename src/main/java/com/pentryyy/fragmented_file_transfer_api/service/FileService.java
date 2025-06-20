@@ -83,17 +83,17 @@ public class FileService {
 
         this.channel = new TransmissionChannel(fileTask.getLossProbability());
 
-        this.splitter = new FileSplitter(
-            fileTask.getProcessingId(), 
-            this.channel
-        );
-
         long fileSize    = fileTask.getFile().length();
         int  totalChunks = (int) Math.ceil((double) fileSize / fileTask.getChunkSize());
         
-        this.assembler = new FileAssembler(
+        this.splitter = new FileSplitter(
             processingId,
             totalChunks,
+            this.channel
+        );
+
+        this.assembler = new FileAssembler(
+            processingId,
             this.channel
         );
 
@@ -164,15 +164,10 @@ public class FileService {
                 fileTask.getChunkSize()
             );
 
-            // Проверка на то, доставлены ли все чанки
-            while (!this.splitter.isDeliveryComplete()) {
-                this.assembler.sendFeedback();
-            }
-
             fileTask.setStatus(FileTaskStatus.SPLIT_COMPLETED);
             fileTask.setTimestamp(LocalDateTime.now());
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             fileTask.setStatus(FileTaskStatus.SPLIT_FAILED);
             throw new FileNotSplitedException();
         }
@@ -183,11 +178,6 @@ public class FileService {
 
         try {
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_PROCESSING);
-
-            // Проверка на то, получены ли все чанки файла
-            while (!this.assembler.isFileComplete()) {
-                this.assembler.sendFeedback();
-            }
             
             // Сборка файла
             this.assembler.assembleFile(
