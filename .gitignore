@@ -33,7 +33,6 @@ build/
 .vscode/
 
 ### File Resources ###
-src/main/resources/input
 src/main/resources/output
 
 ### Maven ###

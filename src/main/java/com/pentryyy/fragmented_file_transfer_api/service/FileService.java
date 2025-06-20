@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -32,7 +31,7 @@ import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
 import com.pentryyy.fragmented_file_transfer_api.utils.DirectoryUtils;
 
 @Service
-public class FileService extends DirectoryUtils {
+public class FileService {
 
     private static Set<FileTask> collectionOfProcesses = ConcurrentHashMap.newKeySet();
     
@@ -60,15 +59,9 @@ public class FileService extends DirectoryUtils {
         String processingId = UUID.randomUUID().toString();
 
         // Создаем директории для обработки
-        String inputDir  = getInputDir(processingId);
-        String outputDir = getOutputDir(processingId);
-
-        Files.createDirectories(Paths.get(inputDir));
-        Files.createDirectories(Paths.get(outputDir));
-
-        // Сохраняем загруженный файл
-        Path inputFilePath = Paths.get(inputDir + file.getOriginalFilename());
-        file.transferTo(inputFilePath);
+        Files.createDirectories(Paths.get(
+            DirectoryUtils.getOutputDir(processingId)
+        ));
 
         this.fileTask = FileTask
             .builder()
@@ -77,7 +70,7 @@ public class FileService extends DirectoryUtils {
             .chunkSize(chunkSize)
             .lossProbability(lossProbability)
             .timestamp(LocalDateTime.now())
-            .file(inputFilePath.toFile())
+            .file(DirectoryUtils.convert(file))
             .build();
 
         collectionOfProcesses.add(fileTask);
@@ -147,7 +140,7 @@ public class FileService extends DirectoryUtils {
     public File getFileById(String processingId) throws FileNotFoundException {
         FileTask fileTask = findFileTaskById(processingId);
 
-        String filePath = getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName();
+        String filePath = DirectoryUtils.getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName();
         File   file     = new File(filePath);
 
         if (!file.exists()) {
@@ -198,7 +191,7 @@ public class FileService extends DirectoryUtils {
             
             // Сборка файла
             this.assembler.assembleFile(
-                getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName()
+                DirectoryUtils.getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName()
             );
 
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_COMPLETED);
