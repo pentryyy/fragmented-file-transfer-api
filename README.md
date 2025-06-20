@@ -11,13 +11,3 @@
 - YAML: `http://localhost:8080/v3/api-docs.yaml`
 
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
-
-# Kafka
-
-Запускается через докер образ в директории `/kafka`. Топики запускаются с помощью `create-kafka-topics.bat`.
-
-Команда для просмотра всех топиков:
-
-```
-docker exec kafka kafka-topics --list --bootstrap-server localhost:9092      
-```
