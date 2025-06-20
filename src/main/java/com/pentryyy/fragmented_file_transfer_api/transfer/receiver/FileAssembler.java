@@ -7,10 +7,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.pentryyy.fragmented_file_transfer_api.exception.ChunkIsMissingException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileIncompleteException;
@@ -24,39 +20,11 @@ public class FileAssembler {
     private final Map<Integer, Chunk> receivedChunks = new ConcurrentHashMap<>();
     private final TransmissionChannel channel;
 
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private final AtomicBoolean            isActive  = new AtomicBoolean(true);
-    
-    private volatile int  totalChunks      = -1;
-    private volatile long lastFeedbackTime = System.currentTimeMillis();
+    private volatile int totalChunks = -1;
 
     public FileAssembler(String processingId, TransmissionChannel channel) {
         this.processingId = processingId;
         this.channel      = channel;
-        
-        // Запускаем цикл по запросу фидбека
-        scheduler.scheduleAtFixedRate(() -> {
-            if (!isActive.get()) 
-                return;
-            
-            if (isFileComplete()) {
-                isActive.set(false);
-                scheduler.shutdown();
-                try {
-                    if (!scheduler.awaitTermination(3, TimeUnit.SECONDS)) {
-                        scheduler.shutdownNow();
-                    }
-                } catch (InterruptedException e) {
-                    scheduler.shutdownNow();
-                    Thread.currentThread().interrupt();
-                }
-            }
-            
-            // Отправляем feedback при отсутствии активности > 2 сек
-            if (System.currentTimeMillis() - lastFeedbackTime > 2000)
-                sendFeedback();
-            
-        }, 0, 1, TimeUnit.SECONDS);
     }
 
     public void receiveChunk(Chunk chunk) {
@@ -76,7 +44,6 @@ public class FileAssembler {
         }
         
         receivedChunks.put(chunk.getSequenceNumber(), chunk);
-        lastFeedbackTime = System.currentTimeMillis();
     }
 
     public void sendFeedback() {

@@ -24,6 +24,7 @@ import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAssembledException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileNotSplitedException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
+import com.pentryyy.fragmented_file_transfer_api.exception.ReceiverNotRegisteredException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
 import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
@@ -96,6 +97,12 @@ public class FileService {
             processingId,
             this.channel
         );
+
+        if (splitter == null) 
+            throw new ReceiverNotRegisteredException("FileSplitter не зарегистрирован");
+        
+        if (assembler == null) 
+            throw new ReceiverNotRegisteredException("FileAssembler не зарегистрирован");
 
         this.channel.registerReceiver(splitter);
         this.channel.registerReceiver(assembler);
