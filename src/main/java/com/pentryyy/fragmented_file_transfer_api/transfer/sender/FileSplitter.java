@@ -11,18 +11,18 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.pentryyy.fragmented_file_transfer_api.component.KafkaTransmissionChannel;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.Chunk;
 import com.pentryyy.fragmented_file_transfer_api.transfer.core.Feedback;
-import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
 
 public class FileSplitter {
 
     private static final int MAX_RETRIES   = 5;
     private static final int META_SEQUENCE = -1;
 
-    private final String              processingId;
-    private final TransmissionChannel channel;
-    private final int                 totalChunks;
+    private final String                   processingId;
+    private final KafkaTransmissionChannel channel;
+    private final int                      totalChunks;
 
     private final Map<Integer, Chunk> chunks = new ConcurrentHashMap<>();
     private final Set<Integer> pendingChunks = ConcurrentHashMap.newKeySet();
@@ -32,7 +32,7 @@ public class FileSplitter {
 
     private volatile boolean deliveryComplete;
 
-    public FileSplitter(String processingId, int totalChunks, TransmissionChannel channel) {
+    public FileSplitter(String processingId, int totalChunks, KafkaTransmissionChannel channel) {
         this.processingId = processingId;
         this.totalChunks  = totalChunks;
         this.channel      = channel;

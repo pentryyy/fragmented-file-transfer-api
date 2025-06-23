@@ -98,8 +98,6 @@ public class FileController {
                                  .body(jsonObject.toString());
         }
 
-        fileService.setupConfigureProcessing(processingId);
-
         Thread senderThread = new Thread(() -> {
             fileService.splittingFileIntoChunks(processingId);
         });

@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -20,13 +21,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.pentryyy.fragmented_file_transfer_api.component.KafkaTransmissionChannel;
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAssembledException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileNotSplitedException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
-import com.pentryyy.fragmented_file_transfer_api.exception.ReceiverNotRegisteredException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
-import com.pentryyy.fragmented_file_transfer_api.transfer.core.TransmissionChannel;
+import com.pentryyy.fragmented_file_transfer_api.service.kafka.FileAssemblerManager;
+import com.pentryyy.fragmented_file_transfer_api.service.kafka.FileSplitterManager;
 import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
 import com.pentryyy.fragmented_file_transfer_api.transfer.sender.FileSplitter;
 import com.pentryyy.fragmented_file_transfer_api.utils.DirectoryUtils;
@@ -38,9 +40,14 @@ public class FileService {
     
     private FileTask fileTask;
 
-    private TransmissionChannel channel;
-    private FileSplitter        splitter;
-    private FileAssembler       assembler;
+    @Autowired
+    private KafkaTransmissionChannel channel;
+
+    @Autowired
+    private FileSplitterManager splitterManager;
+
+    @Autowired
+    private FileAssemblerManager assemblerManager;
 
     public FileTask findFileTaskById(String processingId) {
         return collectionOfProcesses
@@ -77,35 +84,6 @@ public class FileService {
         collectionOfProcesses.add(fileTask);
 
         return processingId;
-    }
-
-    public void setupConfigureProcessing(String processingId) {
-        FileTask fileTask = findFileTaskById(processingId);
-
-        this.channel = new TransmissionChannel(fileTask.getLossProbability());
-
-        long fileSize    = fileTask.getFile().length();
-        int  totalChunks = (int) Math.ceil((double) fileSize / fileTask.getChunkSize());
-        
-        this.splitter = new FileSplitter(
-            processingId,
-            totalChunks,
-            this.channel
-        );
-
-        this.assembler = new FileAssembler(
-            processingId,
-            this.channel
-        );
-
-        if (splitter == null) 
-            throw new ReceiverNotRegisteredException("FileSplitter не зарегистрирован");
-        
-        if (assembler == null) 
-            throw new ReceiverNotRegisteredException("FileAssembler не зарегистрирован");
-
-        this.channel.registerReceiver(splitter);
-        this.channel.registerReceiver(assembler);
     }
 
     public FileTaskStatus getStatusById(String processingId) {
@@ -165,8 +143,17 @@ public class FileService {
         try {
             fileTask.setStatus(FileTaskStatus.SPLIT_PROCESSING);
 
+            long fileSize    = fileTask.getFile().length();
+            int  totalChunks = (int) Math.ceil((double) fileSize / fileTask.getChunkSize());
+
+            FileSplitter splitter = splitterManager.createSplitter(
+                processingId,
+                totalChunks,
+                channel
+            );
+
             // Разбиение файла на чанки
-            this.splitter.splitFile(
+            splitter.splitFile(
                 fileTask.getFile(),
                 fileTask.getChunkSize()
             );
@@ -186,15 +173,18 @@ public class FileService {
         try {
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_PROCESSING);
             
+            FileAssembler assembler = assemblerManager.getAssembler(processingId);
+
             // Сборка файла
-            this.assembler.assembleFile(
+            assembler.assembleFile(
                 DirectoryUtils.getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName()
             );
+            assemblerManager.removeAssembler(processingId);
 
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_COMPLETED);
             fileTask.setTimestamp(LocalDateTime.now());
         
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             fileTask.setStatus(FileTaskStatus.ASSEMBLE_FAILED);
             throw new FileNotAssembledException();
         }

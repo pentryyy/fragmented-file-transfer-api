@@ -14,10 +14,6 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   kafka:
-    producer:
-      retries: 5
-      acks: all
-      delivery-timeout-ms: 30000
-      request-timeout-ms: 5000
+    bootstrap-servers: localhost:9092
 server:
   port: 8080

@@ -5,11 +5,13 @@ import java.util.Set;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor 
 @AllArgsConstructor
 public class Feedback implements Serializable {
-    private final String       processingId;
-    private final int          totalChunks;
-    private final Set<Integer> missingSequences;
+    private String       processingId;
+    private int          totalChunks;
+    private Set<Integer> missingSequences;
 }
