@@ -12,9 +12,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessingInterruptException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
 import com.pentryyy.fragmented_file_transfer_api.service.FileService;
+import com.pentryyy.fragmented_file_transfer_api.utils.DirectoryUtils;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -150,21 +152,23 @@ public class FileController {
         @PathVariable String processingId
     ) {
         
-        Thread receiverThread = new Thread(() -> {
-            fileService.assembleFileFromChunks(processingId);
-        });
-        
-        // Старт потоков
-        receiverThread.start();
-        
-        // Ожидание завершения
-        try {
-            receiverThread.join();
-        } catch (InterruptedException e) {
-            throw new FileProcessingInterruptException();
+        if (!fileService.getStatusById(processingId).equals(FileTaskStatus.ASSEMBLE_COMPLETED)) {
+            Thread receiverThread = new Thread(() -> {
+                fileService.assembleFileFromChunks(processingId);
+            });
+            
+            // Старт потоков
+            receiverThread.start();
+            
+            // Ожидание завершения
+            try {
+                receiverThread.join();
+            } catch (InterruptedException e) {
+                throw new FileProcessingInterruptException();
+            }
         }
 
-        File tempFile = fileService.getTempFile();
+        File tempFile = DirectoryUtils.getOutputFile(processingId);
          
         Resource resource = new FileSystemResource(tempFile);
 

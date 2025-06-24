@@ -97,10 +97,6 @@ public class FileService {
         return logOfProcessRepository.findAll(PageRequest.of(page, limit, sort));
     }
 
-    public File getTempFile() {
-        return this.tempFile;
-    }
-
     @Transactional
     public void splittingFileIntoChunks(String processingId) {
         FileTask fileTask = findFileTaskById(processingId);
