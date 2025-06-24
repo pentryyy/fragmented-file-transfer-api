@@ -70,12 +70,6 @@ public class FileController {
         @RequestParam("file") MultipartFile file,
 
         @Parameter(
-            description = "Вероятность потери пакетов (0.0-1.0)",
-            example = "0.3"
-        ) 
-        @RequestParam(value = "lossProbability", defaultValue = "0.3") double lossProbability,
-
-        @Parameter(
             description = "Размер каждого чанка",
             example = "1024"
         ) 
@@ -86,11 +80,7 @@ public class FileController {
 
         String processingId;
         try {
-            processingId = fileService.initializingFileProcessing(
-                file, 
-                lossProbability,
-                chunkSize
-            );
+            processingId = fileService.initializingFileProcessing(file, chunkSize);
         } catch (IOException e) {
             return ResponseEntity.internalServerError() 
                                  .contentType(MediaType.APPLICATION_JSON)

@@ -53,7 +53,6 @@ public class FileService {
 
     public String initializingFileProcessing(
         MultipartFile file, 
-        double lossProbability,
         int chunkSize
     ) throws IOException {
 
@@ -70,7 +69,6 @@ public class FileService {
             .processingId(processingId)
             .status(FileTaskStatus.CREATED)
             .chunkSize(chunkSize)
-            .lossProbability(lossProbability)
             .timestamp(LocalDateTime.now())
             .build();
 

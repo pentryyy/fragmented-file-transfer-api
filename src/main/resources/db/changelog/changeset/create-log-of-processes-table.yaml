@@ -26,12 +26,6 @@ databaseChangeLog:
                     nullable: false
                     
               - column:
-                  name: loss_probability
-                  type: DOUBLE PRECISION
-                  constraints:
-                    nullable: false
-                    
-              - column:
                   name: timestamp
                   type: TIMESTAMP
                   constraints:

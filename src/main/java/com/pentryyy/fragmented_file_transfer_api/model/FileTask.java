@@ -33,9 +33,6 @@ public class FileTask {
     @Column(name = "chunk_size", nullable = false)
     private int chunkSize;
 
-    @Column(name = "loss_probability", nullable = false)
-    private double lossProbability;
-
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
 }
