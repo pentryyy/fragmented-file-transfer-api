@@ -1,0 +1,38 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-log-of-processes-table
+      author: pentryyy
+      changes:
+        - createTable:
+            tableName: log_of_processes
+            columns:
+              - column:
+                  name: processing_id
+                  type: VARCHAR(36)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+                    
+              - column:
+                  name: chunk_size
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+                    
+              - column:
+                  name: loss_probability
+                  type: DOUBLE PRECISION
+                  constraints:
+                    nullable: false
+                    
+              - column:
+                  name: timestamp
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false

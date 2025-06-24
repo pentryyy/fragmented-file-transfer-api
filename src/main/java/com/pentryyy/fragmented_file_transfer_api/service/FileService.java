@@ -1,24 +1,18 @@
 package com.pentryyy.fragmented_file_transfer_api.service;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.pentryyy.fragmented_file_transfer_api.component.KafkaTransmissionChannel;
@@ -27,6 +21,7 @@ import com.pentryyy.fragmented_file_transfer_api.exception.FileNotAssembledExcep
 import com.pentryyy.fragmented_file_transfer_api.exception.FileNotSplitedException;
 import com.pentryyy.fragmented_file_transfer_api.exception.FileProcessNotFoundException;
 import com.pentryyy.fragmented_file_transfer_api.model.FileTask;
+import com.pentryyy.fragmented_file_transfer_api.repository.LogOfProcessRepository;
 import com.pentryyy.fragmented_file_transfer_api.service.kafka.FileAssemblerManager;
 import com.pentryyy.fragmented_file_transfer_api.service.kafka.FileSplitterManager;
 import com.pentryyy.fragmented_file_transfer_api.transfer.receiver.FileAssembler;
@@ -36,9 +31,10 @@ import com.pentryyy.fragmented_file_transfer_api.utils.DirectoryUtils;
 @Service
 public class FileService {
 
-    private static Set<FileTask> collectionOfProcesses = ConcurrentHashMap.newKeySet();
-    
-    private FileTask fileTask;
+    private File tempFile;
+
+    @Autowired
+    private LogOfProcessRepository logOfProcessRepository;
 
     @Autowired
     private KafkaTransmissionChannel channel;
@@ -49,11 +45,9 @@ public class FileService {
     @Autowired
     private FileAssemblerManager assemblerManager;
 
-    public FileTask findFileTaskById(String processingId) {
-        return collectionOfProcesses
-            .stream()
-            .filter(task -> Objects.equals(task.getProcessingId(), processingId))
-            .findFirst()
+    private FileTask findFileTaskById(String processingId) {
+        return logOfProcessRepository
+            .findById(processingId)
             .orElseThrow(() -> new FileProcessNotFoundException(processingId));
     }
 
@@ -71,79 +65,52 @@ public class FileService {
             DirectoryUtils.getOutputDir(processingId)
         ));
 
-        this.fileTask = FileTask
+        FileTask fileTask = FileTask
             .builder()
             .processingId(processingId)
             .status(FileTaskStatus.CREATED)
             .chunkSize(chunkSize)
             .lossProbability(lossProbability)
             .timestamp(LocalDateTime.now())
-            .file(DirectoryUtils.convert(file))
             .build();
 
-        collectionOfProcesses.add(fileTask);
+        this.tempFile = DirectoryUtils.convert(file);
+
+        logOfProcessRepository.save(fileTask);
 
         return processingId;
     }
 
     public FileTaskStatus getStatusById(String processingId) {
-        return collectionOfProcesses
-            .stream()
-            .filter(task -> task.getProcessingId().equals(processingId))
-            .findFirst()
-            .map(FileTask::getStatus)
+        return logOfProcessRepository
+            .findStatusById(processingId)
             .orElseThrow(() -> new FileProcessNotFoundException(processingId));
     }
 
     public Page<FileTask> getAllTasks(
-        int page,
+        int page, 
         int limit,
-        String sortBy,
-        Sort.Direction sortOrder
+        String sortBy, 
+        String sortOrder
     ) {
-
-        List<FileTask> tasks = new ArrayList<>(collectionOfProcesses);
-
-        int totalItems = tasks.size();
-        
-        int start = Math.min(page * limit, totalItems);
-        int end   = Math.min(start + limit, totalItems);
-        
-        // Получаем подсписок для текущей страницы
-        List<FileTask> pageContent = tasks.subList(start, end);
-        
-        // Создаем объект страницы
-        PageRequest pageable = PageRequest.of(
-            page, 
-            limit, 
-            Sort.by(sortOrder, sortBy)
-        );
-        
-        return new PageImpl<>(pageContent, pageable, totalItems);
+        Sort sort = sortOrder.equalsIgnoreCase(Sort.Direction.ASC.name())
+            ? Sort.by(sortBy).ascending()
+            : Sort.by(sortBy).descending();
+        return logOfProcessRepository.findAll(PageRequest.of(page, limit, sort));
     }
 
-    public File getFileById(String processingId) throws FileNotFoundException {
-        FileTask fileTask = findFileTaskById(processingId);
-
-        String filePath = DirectoryUtils.getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName();
-        File   file     = new File(filePath);
-
-        if (!file.exists()) {
-            throw new FileNotFoundException(
-                "Файл не найден по адресу: " + filePath
-            );
-        }
-
-        return file;
+    public File getTempFile() {
+        return this.tempFile;
     }
 
+    @Transactional
     public void splittingFileIntoChunks(String processingId) {
         FileTask fileTask = findFileTaskById(processingId);
         
         try {
-            fileTask.setStatus(FileTaskStatus.SPLIT_PROCESSING);
+            logOfProcessRepository.updateStatusById(processingId, FileTaskStatus.SPLIT_PROCESSING);
 
-            long fileSize    = fileTask.getFile().length();
+            long fileSize    = this.tempFile.length();
             int  totalChunks = (int) Math.ceil((double) fileSize / fileTask.getChunkSize());
 
             FileSplitter splitter = splitterManager.createSplitter(
@@ -154,38 +121,38 @@ public class FileService {
 
             // Разбиение файла на чанки
             splitter.splitFile(
-                fileTask.getFile(),
+                this.tempFile,
                 fileTask.getChunkSize()
             );
 
-            fileTask.setStatus(FileTaskStatus.SPLIT_COMPLETED);
-            fileTask.setTimestamp(LocalDateTime.now());
+            logOfProcessRepository.updateStatusById(processingId, FileTaskStatus.SPLIT_COMPLETED);
+            logOfProcessRepository.updateTimestampById(processingId, LocalDateTime.now());
 
         } catch (IOException e) {
-            fileTask.setStatus(FileTaskStatus.SPLIT_FAILED);
+            logOfProcessRepository.updateStatusById(processingId, FileTaskStatus.SPLIT_FAILED);
             throw new FileNotSplitedException();
         }
     }
 
+    @Transactional
     public void assembleFileFromChunks(String processingId) {
-        FileTask fileTask = findFileTaskById(processingId);
 
         try {
-            fileTask.setStatus(FileTaskStatus.ASSEMBLE_PROCESSING);
+            logOfProcessRepository.updateStatusById(processingId, FileTaskStatus.ASSEMBLE_PROCESSING);
             
             FileAssembler assembler = assemblerManager.getAssembler(processingId);
 
             // Сборка файла
             assembler.assembleFile(
-                DirectoryUtils.getOutputDir(processingId) + "assembled_" + fileTask.getFile().getName()
+                DirectoryUtils.getOutputDir(processingId) + "assembled_" + this.tempFile.getName()
             );
             assemblerManager.removeAssembler(processingId);
 
-            fileTask.setStatus(FileTaskStatus.ASSEMBLE_COMPLETED);
-            fileTask.setTimestamp(LocalDateTime.now());
+            logOfProcessRepository.updateStatusById(processingId, FileTaskStatus.ASSEMBLE_COMPLETED);
+            logOfProcessRepository.updateTimestampById(processingId, LocalDateTime.now());
         
         } catch (IOException | InterruptedException e) {
-            fileTask.setStatus(FileTaskStatus.ASSEMBLE_FAILED);
+            logOfProcessRepository.updateStatusById(processingId, FileTaskStatus.ASSEMBLE_FAILED);
             throw new FileNotAssembledException();
         }
     }

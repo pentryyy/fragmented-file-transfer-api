@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -175,25 +174,19 @@ public class FileController {
             throw new FileProcessingInterruptException();
         }
 
-        File file;
-        try {
-            file = fileService.getFileById(processingId);
-           
-            Resource resource = new FileSystemResource(file);
+        File tempFile = fileService.getTempFile();
+         
+        Resource resource = new FileSystemResource(tempFile);
 
-            ContentDisposition contentDisposition = ContentDisposition
-                .attachment()
-                .filename(file.getName(), StandardCharsets.UTF_8)
-                .build();
-            
-            return ResponseEntity.ok()
-                                 .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
-                                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                                 .body(resource);
-            
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().body(null);
-        }
+        ContentDisposition contentDisposition = ContentDisposition
+            .attachment()
+            .filename(tempFile.getName(), StandardCharsets.UTF_8)
+            .build();
+        
+        return ResponseEntity.ok()
+                             .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition.toString())
+                             .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                             .body(resource);
     }
 
     @Operation(
@@ -266,7 +259,7 @@ public class FileController {
             schema = @Schema(allowableValues = {"ASC", "DESC"}),
             example = "ASC"
         ) 
-        @RequestParam(defaultValue = "ASC") Sort.Direction sortOrder
+        @RequestParam(defaultValue = "ASC") String sortOrder
     ) {
 
         Page<FileTask> fileTask = fileService.getAllTasks(

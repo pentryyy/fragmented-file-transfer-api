@@ -1,28 +1,41 @@
 package com.pentryyy.fragmented_file_transfer_api.model;
 
-import java.io.File;
 import java.time.LocalDateTime;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.pentryyy.fragmented_file_transfer_api.enumeration.FileTaskStatus;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 
+@Entity
 @Data
 @Builder
+@NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@Table(name = "log_of_processes")
 public class FileTask {
-    @EqualsAndHashCode.Include
-    private final String processingId;
-    
-    private FileTaskStatus status;
-    private int            chunkSize;
-    private double         lossProbability;
-    private LocalDateTime  timestamp;
 
-    @JsonIgnore
-    private File file;
+    @Id
+    @Column(name = "processing_id", length = 36, nullable = false)
+    private String processingId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20, nullable = false)
+    private FileTaskStatus status;
+
+    @Column(name = "chunk_size", nullable = false)
+    private int chunkSize;
+
+    @Column(name = "loss_probability", nullable = false)
+    private double lossProbability;
+
+    @Column(name = "timestamp", nullable = false)
+    private LocalDateTime timestamp;
 }
