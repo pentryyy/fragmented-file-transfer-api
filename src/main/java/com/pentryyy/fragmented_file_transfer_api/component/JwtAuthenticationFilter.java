@@ -13,6 +13,8 @@ import com.pentryyy.fragmented_file_transfer_api.service.JwtService;
 import com.pentryyy.fragmented_file_transfer_api.service.UserService;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -85,6 +87,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             
         } catch (ExpiredJwtException e) {
             handleJwtException(response, request, "Истек срок JWT токена");
+        } catch (MalformedJwtException e) {
+            handleJwtException(response, request, "Неверный формат JWT токена");
+        } catch (SignatureException e) {
+            handleJwtException(response, request, "Неверная сигнатура JWT токена");
         }
     }
 
