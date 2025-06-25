@@ -23,7 +23,9 @@
 docker exec kafka kafka-topics ^
   --create ^
   --bootstrap-server localhost:9092 ^
-  --topic file-chunks
+  --topic file-chunks ^
+  --partitions 3 ^
+  --replication-factor 1
 ```
 
  Топик для хранения обратной связи.
@@ -32,7 +34,9 @@ docker exec kafka kafka-topics ^
 docker exec kafka kafka-topics ^
   --create ^
   --bootstrap-server localhost:9092 ^
-  --topic file-feedbacks
+  --topic file-feedbacks ^
+  --partitions 3 ^
+  --replication-factor 1
 ```
 
 
